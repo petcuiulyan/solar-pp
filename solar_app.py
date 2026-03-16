@@ -123,6 +123,14 @@ def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_
 
     ax.set_aspect('equal')
     return fig, len(turn_positions), m_teava, m_cablu
+# --- CALCUL DISTANTE UNICE ---
+distante_unice = set()
+for y in np.unique(turn_positions[:,1]):
+    x_row = np.sort(turn_positions[turn_positions[:,1]==y,0])
+    diffs = np.diff(x_row)
+    for d_val in diffs:
+        distante_unice.add(round(d_val,3))  # rotunjim la 3 zecimale
+distante_unice = sorted(list(distante_unice))
 
 # --- GENERARE / MEMORARE FIGURA ---
 params_key = f"{L_solar}_{l_solar}_{diametru}_{dist_pe_rand}_{culoar_acces}_{max_turnuri}_{st.session_state.pos_echipamente}"
@@ -154,3 +162,5 @@ with col2:
     st.write(f"💧 Teavă: **{t_m:.1f} m**")
     st.write(f"⚡ Cablu: **{c_m * 1.1:.1f} m**")
     st.caption("Configurație: " + st.session_state.pos_echipamente.upper())
+    st.subheader("📏 Distante între turnuri (unice)")
+st.write(distante_unice)
