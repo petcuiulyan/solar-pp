@@ -4,8 +4,8 @@ import matplotlib.patches as patches
 import numpy as np
 
 # --- CONFIGURARE PAGINA ---
-st.set_page_config(page_title="Arhitect Solar AI v7", layout="wide")
-st.title("🌱 Arhitect Solar AI: Control Vocal/Text Optimizat")
+st.set_page_config(page_title="Arhitect Solar AI v8", layout="wide")
+st.title("🌱 Arhitect Solar AI: Control Vocal/Text Optimizat + Distante")
 
 # --- INITIALIZARE STATE ---
 if 'pos_echipamente' not in st.session_state:
@@ -101,7 +101,6 @@ def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_
     for y in unique_y:
         x_row = np.sort(turn_positions[turn_positions[:,1]==y,0])
         segments = []
-        # segmente între margini și turnuri
         if pos_echip == "dreapta":
             segments.append((x_start, x_row[0]-d/2))
             for i in range(len(x_row)-1):
@@ -112,7 +111,6 @@ def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_
             for i in range(len(x_row)-1):
                 segments.append((x_row[i+1]-d/2, x_row[i]+d/2))
             segments.append((mag_x, x_row[0]-d/2))
-        # desenare
         for seg_start, seg_end in segments:
             if seg_end <= seg_start:
                 continue
@@ -121,22 +119,23 @@ def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_
             m_teava += abs(seg_end - seg_start)
             m_cablu += abs(seg_end - seg_start)
 
+    # --- Calcul distante unice între turnuri ---
+    distante_unice = set()
+    for y in unique_y:
+        x_row = np.sort(turn_positions[turn_positions[:,1]==y,0])
+        diffs = np.diff(x_row)
+        for d_val in diffs:
+            distante_unice.add(round(d_val,3))
+    distante_unice = sorted(list(distante_unice))
+
     ax.set_aspect('equal')
-    return fig, len(turn_positions), m_teava, m_cablu
-# --- CALCUL DISTANTE UNICE ---
-distante_unice = set()
-for y in np.unique(turn_positions[:,1]):
-    x_row = np.sort(turn_positions[turn_positions[:,1]==y,0])
-    diffs = np.diff(x_row)
-    for d_val in diffs:
-        distante_unice.add(round(d_val,3))  # rotunjim la 3 zecimale
-distante_unice = sorted(list(distante_unice))
+    return fig, len(turn_positions), m_teava, m_cablu, distante_unice
 
 # --- GENERARE / MEMORARE FIGURA ---
 params_key = f"{L_solar}_{l_solar}_{diametru}_{dist_pe_rand}_{culoar_acces}_{max_turnuri}_{st.session_state.pos_echipamente}"
 
 if st.session_state.last_params != params_key:
-    fig, total, t_m, c_m = genereaza_plan_tehnic(
+    fig, total, t_m, c_m, distante_unice = genereaza_plan_tehnic(
         L_solar, l_solar, diametru, dist_pe_rand, d_teh=0.3, d_acc=culoar_acces, max_t=max_turnuri,
         pos_echip=st.session_state.pos_echipamente
     )
@@ -144,12 +143,14 @@ if st.session_state.last_params != params_key:
     st.session_state.total = total
     st.session_state.t_m = t_m
     st.session_state.c_m = c_m
+    st.session_state.distante_unice = distante_unice
     st.session_state.last_params = params_key
 else:
     fig = st.session_state.fig
     total = st.session_state.total
     t_m = st.session_state.t_m
     c_m = st.session_state.c_m
+    distante_unice = st.session_state.distante_unice
 
 # --- AFISARE ---
 col1, col2 = st.columns([4,1])
@@ -162,5 +163,6 @@ with col2:
     st.write(f"💧 Teavă: **{t_m:.1f} m**")
     st.write(f"⚡ Cablu: **{c_m * 1.1:.1f} m**")
     st.caption("Configurație: " + st.session_state.pos_echipamente.upper())
+    st.divider()
     st.subheader("📏 Distante între turnuri (unice)")
-st.write(distante_unice)
+    st.write(distante_unice)
