@@ -45,13 +45,27 @@ with st.sidebar:
     culoar_acces = st.slider("Culoar Acces (m)", 0.8, 2.5, 1.2)
 
 # --- FUNCTII UTILE ---
-def deseneaza_echipamente(ax, pos_echip, L, l):
-    """Deseneaza echipamente fixe și returnează coordonata magistralei"""
-    if pos_echip == "dreapta":
-        ibc_x, germ_x, tablou_x, mag_x = L-1.3, L-2.3, L-0.2, L-3.0
-    else:
-        ibc_x, germ_x, tablou_x, mag_x = 0.3, 0.3, 0.2, 3.0
+def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_echip="dreapta"):
+    fig, ax = plt.subplots(figsize=(16, 8))
+    ax.set_xlim(-1, L + 1)
+    ax.set_ylim(-1, l + 1)
+    ax.add_patch(patches.Rectangle((0, 0), L, l, linewidth=3, edgecolor='black', facecolor='#fdfdfd', zorder=1))
 
+    # --- Magistrala dinamică ---
+    if pos_echip == "dreapta":
+        mag_x = L-3.0
+        x_start = 0.8
+        x_stop  = L-3.5
+    else:
+        mag_x = 3.0
+        x_start = 3.5
+        x_stop  = L-0.8
+
+    # Echipamente fixe
+    if pos_echip == "dreapta":
+        ibc_x, germ_x, tablou_x = L-1.3, L-2.3, L-0.2
+    else:
+        ibc_x, germ_x, tablou_x = 0.3, 0.3, 0.2
     # IBC-uri
     ax.add_patch(patches.Rectangle((ibc_x, l-1.3), 1, 1, color='blue', alpha=0.3, zorder=2))
     ax.add_patch(patches.Rectangle((ibc_x, l-2.8), 1, 1, color='blue', alpha=0.3, zorder=2))
@@ -59,33 +73,19 @@ def deseneaza_echipamente(ax, pos_echip, L, l):
     ax.add_patch(patches.Rectangle((germ_x, 0.3), 2, 3, color='#e67e22', alpha=0.2, zorder=2))
     # Tablou
     ax.plot(tablou_x, l-0.5, 'rs', markersize=12, zorder=10)
-    # Magistrala
+    # Magistrala vizibilă
     ax.plot([ibc_x+0.5, mag_x], [l-0.8, l-0.8], color='blue', linewidth=2, zorder=3)
     ax.plot([mag_x, tablou_x], [l-0.5, l-0.5], color='red', linestyle='--', linewidth=2, zorder=3)
-    return mag_x
 
-def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_echip="dreapta"):
-    fig, ax = plt.subplots(figsize=(16, 8))
-    ax.set_xlim(-1, L + 1)
-    ax.set_ylim(-1, l + 1)
-    ax.add_patch(patches.Rectangle((0, 0), L, l, linewidth=3, edgecolor='black', facecolor='#fdfdfd', zorder=1))
-
-    mag_x = deseneaza_echipamente(ax, pos_echip, L, l)
-
-    # Parametri x start/stop pentru turnuri
-    x_start = 0.8 if pos_echip == "dreapta" else 3.5
-    x_stop  = L-3.5 if pos_echip == "dreapta" else L-0.8
-
-    # Generare vectorială y-rânduri și turnuri
+    # --- Generare turnuri ---
     y_ptr = 0.5
     turn_positions = []
     while y_ptr + d <= l - 0.3 and len(turn_positions) < max_t:
         y1 = y_ptr + d/2
         y2 = y1 + d + d_teh
         pereche = [y1] if y2 + d/2 > l - 0.3 else [y1, y2]
-
         for y_pos in pereche:
-            x_positions = np.arange(x_start, x_stop+d, d+d_rand)
+            x_positions = np.arange(x_start, x_stop+d, d+d_rand) if pos_echip=="dreapta" else np.arange(x_stop, x_start-d, -(d+d_rand))
             for x in x_positions:
                 if len(turn_positions) >= max_t:
                     break
@@ -93,20 +93,26 @@ def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_
                 turn_positions.append((x, y_pos))
         y_ptr = (pereche[-1] + d/2) + d_acc
 
+    # --- Linii electrice și țeavă între turnuri și magistrală ---
     turn_positions = np.array(turn_positions)
     unique_y = np.unique(turn_positions[:,1])
-
     m_teava, m_cablu = 0, 0
+
     for y in unique_y:
         x_row = np.sort(turn_positions[turn_positions[:,1]==y,0])
-        # Creăm segmente libere între turnuri
-        segments = [(x_start, x_row[0]-d/2)]
-        if len(x_row) > 1:
+        segments = []
+        # segmente între margini și turnuri
+        if pos_echip == "dreapta":
+            segments.append((x_start, x_row[0]-d/2))
             for i in range(len(x_row)-1):
                 segments.append((x_row[i]+d/2, x_row[i+1]-d/2))
-        segments.append((x_row[-1]+d/2, mag_x))
-
-        # Desenăm segmente electrice și țeavă
+            segments.append((x_row[-1]+d/2, mag_x))
+        else:
+            segments.append((x_row[-1]+d/2, x_start))
+            for i in range(len(x_row)-1):
+                segments.append((x_row[i+1]-d/2, x_row[i]+d/2))
+            segments.append((mag_x, x_row[0]-d/2))
+        # desenare
         for seg_start, seg_end in segments:
             if seg_end <= seg_start:
                 continue
