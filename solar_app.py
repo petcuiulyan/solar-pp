@@ -72,38 +72,51 @@ def genereaza_plan_tehnic(L, l, d, d_rand, d_teh=0.3, d_acc=1.2, max_t=150, pos_
 
     mag_x = deseneaza_echipamente(ax, pos_echip, L, l)
 
-    # Calcul turnuri vectorial
-    count = 0
-    m_teava, m_cablu = 0, 0
+    # Parametri x start/stop pentru turnuri
+    x_start = 0.8 if pos_echip == "dreapta" else 3.5
+    x_stop  = L-3.5 if pos_echip == "dreapta" else L-0.8
+
+    # Generare vectorială y-rânduri
     y_ptr = 0.5
-    while y_ptr + d <= l - 0.3 and count < max_t:
-        # Pereche rânduri
+    turn_positions = []  # listă tupluri (x, y)
+    while y_ptr + d <= l - 0.3 and len(turn_positions) < max_t:
         y1 = y_ptr + d/2
         y2 = y1 + d + d_teh
         pereche = [y1] if y2 + d/2 > l - 0.3 else [y1, y2]
 
         for y_pos in pereche:
-            x_start = 0.8 if pos_echip == "dreapta" else 3.5
-            limita_x = L-3.5 if pos_echip == "dreapta" else L-0.8
-
-            # Utilități rând
-            ax.plot([x_start, mag_x], [y_pos, y_pos], color='blue', alpha=0.1, lw=1)
-            ax.plot([x_start, mag_x], [y_pos+0.05, y_pos+0.05], color='red', alpha=0.1, ls='--', lw=1)
-            m_teava += abs(mag_x - x_start)
-            m_cablu += abs(mag_x - x_start)
-
-            # Poziții turnuri vectorial
-            x_positions = np.arange(x_start, limita_x+d, d+d_rand)
+            # Generăm x-uri pentru turnuri
+            x_positions = np.arange(x_start, x_stop+d, d+d_rand)
             for x in x_positions:
-                if count >= max_t:
+                if len(turn_positions) >= max_t:
                     break
                 ax.add_patch(patches.Circle((x, y_pos), d/2, color='#2ecc71', edgecolor='#27ae60', zorder=4))
-                count += 1
+                turn_positions.append((x, y_pos))
 
         y_ptr = (pereche[-1] + d/2) + d_acc
 
+    # --- Linii magistrale între turnuri ---
+    turn_positions = np.array(turn_positions)
+    unique_y = np.unique(turn_positions[:,1])
+
+    m_teava, m_cablu = 0, 0
+    for y in unique_y:
+        x_row = np.sort(turn_positions[turn_positions[:,1]==y,0])
+        prev_x = x_start
+        for x_circ in x_row:
+            ax.plot([prev_x, x_circ - d/2], [y, y], color='blue', alpha=0.3, lw=1, zorder=2)  # teavă
+            ax.plot([prev_x, x_circ - d/2], [y+0.05, y+0.05], color='red', alpha=0.3, lw=1, ls='--', zorder=2)  # cablu
+            m_teava += abs((x_circ - d/2) - prev_x)
+            m_cablu += abs((x_circ - d/2) - prev_x)
+            prev_x = x_circ + d/2
+        # segment final până la magistrala
+        ax.plot([prev_x, mag_x], [y, y], color='blue', alpha=0.3, lw=1, zorder=2)
+        ax.plot([prev_x, mag_x], [y+0.05, y+0.05], color='red', alpha=0.3, lw=1, ls='--', zorder=2)
+        m_teava += abs(mag_x - prev_x)
+        m_cablu += abs(mag_x - prev_x)
+
     ax.set_aspect('equal')
-    return fig, count, m_teava, m_cablu
+    return fig, len(turn_positions), m_teava, m_cablu
 
 # --- GENERARE / MEMORARE FIGURA ---
 params_key = f"{L_solar}_{l_solar}_{diametru}_{dist_pe_rand}_{culoar_acces}_{max_turnuri}_{st.session_state.pos_echipamente}"
